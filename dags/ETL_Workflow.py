@@ -81,6 +81,60 @@ def ETL_Workflow():
 
         return "extracted_olist_customers_dataset"
 
+    @task
+
+    def transform(table_name):
+
+        staging_hook = PostgresHook(
+            postgres_conn_id="new_supabase_id"
+        )
+
+        df = staging_hook.get_pandas_df(
+            f"select * from {table_name}"
+        )
+
+        conn = staging_hook.get_conn()
+
+        try:
+
+            with conn.cursor() as cursor:
+
+                cursor.execute(
+                    """
+                    TRUNCATE TABLE transformed_olist_customers_dataset
+                    """
+                )
+
+                cursor.executemany(
+                    """
+                    INSERT INTO transformed_olist_customers_dataset (
+                        customer_id,
+                        customer_unique_id,
+                        customer_zip_code_prefix,
+                        customer_state,
+                        customer_city
+                    )
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    df.itertuples(
+                        index=False,
+                        name=None
+                    )
+                )
+
+            conn.commit()
+
+        except Exception:
+
+            conn.rollback()
+            raise
+
+        finally:
+
+            conn.close()
+
+        return "transformed_olist_customers_dataset"
+
 
 ETL_Workflow()
 
