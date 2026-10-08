@@ -135,6 +135,53 @@ def ETL_Workflow():
 
         return "transformed_olist_customers_dataset"
 
+    @task
+
+    def load(table_name):
+        staging_hook = PostgresHook(
+            postgres_conn_id="new_supabase_id"
+        )
+
+        df = staging_hook.get_pandas_df(
+            f"select * from {table_name}"
+        )
+
+        conn = staging_hook.get_conn()
+
+        try:
+            with conn.cursor() as cursor:
+                cursor.executemany(
+                    """
+                    INSERT INTO loaded_olist_customers_dataset (
+                        customer_id,
+                        customer_unique_id,
+                        customer_zip_code_prefix,
+                        customer_state,
+                        customer_city
+                    )
+                    VALUES (%s, %s, %s, %s, %s)
+
+                    ON CONFLICT (customer_id)
+                    DO UPDATE SET
+                        customer_unique_id = EXCLUDED.customer_unique_id,
+                        customer_zip_code_prefix = EXCLUDED.customer_zip_code_prefix,
+                        customer_state = EXCLUDED.customer_state,
+                        customer_city = EXCLUDED.customer_city
+                    """,
+                    df.itertuples(
+                        index=False,
+                        name=None
+                    )
+                )
+
+            conn.commit()
+
+        except Exception:
+            conn.rollback()
+            raise
+
+        finally:
+            conn.close()
 
 ETL_Workflow()
 
