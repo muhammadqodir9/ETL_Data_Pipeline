@@ -183,6 +183,15 @@ def ETL_Workflow():
         finally:
             conn.close()
 
+    extracted = extract()
+
+    check_database >> check_database2
+    check_database2 >> extracted
+
+    transformed = transform(extracted)
+
+    load(transformed)
+
 ETL_Workflow()
 
 
